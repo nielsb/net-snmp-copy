@@ -11,7 +11,7 @@
 
 netsnmp_container *sensorContainer = NULL;
 
-static void initialize_lmSensorsTable(const char *tableName,
+static netsnmp_table_registration_info *initialize_lmSensorsTable(const char *tableName,
                                       const oid *tableOID,
                                       netsnmp_container_op *filter,
                                       int mult);
@@ -28,6 +28,10 @@ static const oid lmMiscSensorsTable_oid[]   = {1,3,6,1,4,1,2021,13,16,5};
             /* All the tables have the same length root OID */
 const size_t lmSensorsTables_oid_len = OID_LENGTH(lmMiscSensorsTable_oid);
 
+static netsnmp_table_registration_info *_table_temp;
+static netsnmp_table_registration_info *_table_fan;
+static netsnmp_table_registration_info *_table_volt;
+static netsnmp_table_registration_info *_table_misc;
 
 /* Initialise the LM Sensors MIB module */
 void
@@ -40,20 +44,30 @@ init_lmsensorsMib(void)
      *
      * They are almost identical, so we can use the same registration code.
      */
-    initialize_lmSensorsTable( "lmTempSensorsTable", lmTempSensorsTable_oid,
+    _table_temp = initialize_lmSensorsTable( "lmTempSensorsTable", lmTempSensorsTable_oid,
                                 _sensor_filter_temp, 1000 );  /* MIB asks for mC */
-    initialize_lmSensorsTable( "lmFanSensorsTable",  lmFanSensorsTable_oid,
+    _table_fan = initialize_lmSensorsTable( "lmFanSensorsTable",  lmFanSensorsTable_oid,
                                 _sensor_filter_fan,  1);
-    initialize_lmSensorsTable( "lmVoltSensorsTable", lmVoltSensorsTable_oid,
+    _table_volt = initialize_lmSensorsTable( "lmVoltSensorsTable", lmVoltSensorsTable_oid,
                                 _sensor_filter_volt, 1000 );  /* MIB asks for mV */
-    initialize_lmSensorsTable( "lmMiscSensorsTable", lmMiscSensorsTable_oid,
+    _table_misc = initialize_lmSensorsTable( "lmMiscSensorsTable", lmMiscSensorsTable_oid,
                                 _sensor_filter_misc, 1 );
+}
+
+void
+shutdown_lmsensorsMib(void)
+{
+    DEBUGMSGTL(("ucd-snmp/lmsensorsMib","Shutdown LM-SENSORS-MIB tables\n"));
+    netsnmp_table_registration_info_free(_table_temp);
+    netsnmp_table_registration_info_free(_table_fan);
+    netsnmp_table_registration_info_free(_table_volt);
+    netsnmp_table_registration_info_free(_table_misc);
 }
 
 /*
  * Common initialisation code, used for setting up all four tables
  */
-void
+static netsnmp_table_registration_info *
 initialize_lmSensorsTable(const char *tableName, const oid *tableOID,
                           netsnmp_container_op *filter, int mult )
 {
@@ -97,7 +111,7 @@ initialize_lmSensorsTable(const char *tableName, const oid *tableOID,
     if (netsnmp_container_table_register(reg, table_info, container, 0) !=
         SNMPERR_SUCCESS) {
         snmp_log(LOG_ERR, "Failed to register the sensors container table\n");
-        return;
+        return NULL;
     }
 
     /*
@@ -110,6 +124,7 @@ initialize_lmSensorsTable(const char *tableName, const oid *tableOID,
         netsnmp_inject_handler_before( reg, netsnmp_cache_handler_get( cache ),
                                             "table_container");
     }
+    return table_info;
 
 }
 
